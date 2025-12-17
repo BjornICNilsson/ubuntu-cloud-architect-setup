@@ -103,6 +103,269 @@ phase_1_foundation() {
     log_step "Configuring .zshrc with initial plugins..."
     sed -i 's/plugins=(git)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' "$HOME/.zshrc"
 
+    # Install Neovim (latest stable via PPA)
+    log_step "Installing Neovim..."
+    if ! command -v nvim &> /dev/null; then
+        sudo add-apt-repository -y ppa:neovim-ppa/stable
+        sudo apt update
+        sudo apt install -y neovim
+    else
+        log_info "Neovim already installed"
+    fi
+
+    # Install dependencies for Neovim plugins
+    log_step "Installing Neovim plugin dependencies..."
+    sudo apt install -y ripgrep fd-find xclip wl-clipboard
+
+    # Setup Neovim config directory
+    log_step "Setting up Neovim configuration..."
+    mkdir -p "$HOME/.config/nvim"
+
+    # Create a minimal but practical Neovim config
+    cat > "$HOME/.config/nvim/init.lua" << 'NVIMCONFIG'
+-- =============================================================================
+-- Neovim Config - Cloud Architect Baseline
+-- Minimal, practical config for quick edits and SSH sessions
+-- =============================================================================
+
+-- Leader key (space)
+vim.g.mapleader = ' '
+vim.g.maplocalleader = ' '
+
+-- =============================================================================
+-- Core Options
+-- =============================================================================
+local opt = vim.opt
+
+opt.number = true              -- Line numbers
+opt.relativenumber = true      -- Relative line numbers
+opt.mouse = 'a'                -- Enable mouse
+opt.showmode = false           -- Don't show mode (statusline does it)
+opt.clipboard = 'unnamedplus'  -- System clipboard
+opt.breakindent = true         -- Wrapped lines keep indent
+opt.undofile = true            -- Persistent undo
+opt.ignorecase = true          -- Case insensitive search...
+opt.smartcase = true           -- ...unless capital used
+opt.signcolumn = 'yes'         -- Always show sign column
+opt.updatetime = 250           -- Faster completion
+opt.timeoutlen = 300           -- Faster which-key popup
+opt.splitright = true          -- Vertical split to right
+opt.splitbelow = true          -- Horizontal split below
+opt.list = true                -- Show whitespace chars
+opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
+opt.inccommand = 'split'       -- Live substitution preview
+opt.cursorline = true          -- Highlight current line
+opt.scrolloff = 10             -- Keep 10 lines above/below cursor
+opt.hlsearch = true            -- Highlight search matches
+opt.tabstop = 4                -- Tab width
+opt.shiftwidth = 4             -- Indent width
+opt.expandtab = true           -- Spaces instead of tabs
+opt.termguicolors = true       -- True color support
+
+-- =============================================================================
+-- Keymaps
+-- =============================================================================
+local keymap = vim.keymap.set
+
+-- Clear search highlight with Escape
+keymap('n', '<Esc>', '<cmd>nohlsearch<CR>')
+
+-- Better window navigation
+keymap('n', '<C-h>', '<C-w><C-h>', { desc = 'Focus left window' })
+keymap('n', '<C-l>', '<C-w><C-l>', { desc = 'Focus right window' })
+keymap('n', '<C-j>', '<C-w><C-j>', { desc = 'Focus lower window' })
+keymap('n', '<C-k>', '<C-w><C-k>', { desc = 'Focus upper window' })
+
+-- Stay in visual mode when indenting
+keymap('v', '<', '<gv')
+keymap('v', '>', '>gv')
+
+-- Move lines up/down
+keymap('v', 'J', ":m '>+1<CR>gv=gv", { desc = 'Move selection down' })
+keymap('v', 'K', ":m '<-2<CR>gv=gv", { desc = 'Move selection up' })
+
+-- Quick save
+keymap('n', '<leader>w', '<cmd>w<CR>', { desc = 'Save file' })
+keymap('n', '<leader>q', '<cmd>q<CR>', { desc = 'Quit' })
+
+-- File explorer (netrw)
+keymap('n', '<leader>e', '<cmd>Ex<CR>', { desc = 'File explorer' })
+
+-- Buffer navigation
+keymap('n', '<S-h>', '<cmd>bprevious<CR>', { desc = 'Previous buffer' })
+keymap('n', '<S-l>', '<cmd>bnext<CR>', { desc = 'Next buffer' })
+keymap('n', '<leader>bd', '<cmd>bdelete<CR>', { desc = 'Delete buffer' })
+
+-- =============================================================================
+-- Lazy.nvim Plugin Manager Bootstrap
+-- =============================================================================
+local lazypath = vim.fn.stdpath('data') .. '/lazy/lazy.nvim'
+if not vim.loop.fs_stat(lazypath) then
+    vim.fn.system({
+        'git', 'clone', '--filter=blob:none',
+        'https://github.com/folke/lazy.nvim.git',
+        '--branch=stable', lazypath,
+    })
+end
+vim.opt.rtp:prepend(lazypath)
+
+-- =============================================================================
+-- Plugins
+-- =============================================================================
+require('lazy').setup({
+    -- Colorscheme: Tokyo Night (easy on the eyes)
+    {
+        'folke/tokyonight.nvim',
+        lazy = false,
+        priority = 1000,
+        config = function()
+            vim.cmd.colorscheme('tokyonight-night')
+        end,
+    },
+
+    -- Status line
+    {
+        'nvim-lualine/lualine.nvim',
+        dependencies = { 'nvim-tree/nvim-web-devicons' },
+        config = function()
+            require('lualine').setup({
+                options = { theme = 'tokyonight' }
+            })
+        end,
+    },
+
+    -- Fuzzy finder (telescope)
+    {
+        'nvim-telescope/telescope.nvim',
+        branch = '0.1.x',
+        dependencies = { 'nvim-lua/plenary.nvim' },
+        config = function()
+            local builtin = require('telescope.builtin')
+            vim.keymap.set('n', '<leader>ff', builtin.find_files, { desc = 'Find files' })
+            vim.keymap.set('n', '<leader>fg', builtin.live_grep, { desc = 'Live grep' })
+            vim.keymap.set('n', '<leader>fb', builtin.buffers, { desc = 'Find buffers' })
+            vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Help tags' })
+            vim.keymap.set('n', '<leader>fr', builtin.oldfiles, { desc = 'Recent files' })
+            vim.keymap.set('n', '<leader>/', builtin.current_buffer_fuzzy_find, { desc = 'Search in buffer' })
+        end,
+    },
+
+    -- Treesitter (better syntax highlighting)
+    {
+        'nvim-treesitter/nvim-treesitter',
+        build = ':TSUpdate',
+        config = function()
+            require('nvim-treesitter.configs').setup({
+                ensure_installed = { 
+                    'bash', 'python', 'javascript', 'typescript', 'json', 'yaml', 
+                    'lua', 'vim', 'vimdoc', 'markdown', 'dockerfile', 'hcl', 'go'
+                },
+                auto_install = true,
+                highlight = { enable = true },
+                indent = { enable = true },
+            })
+        end,
+    },
+
+    -- Git signs in gutter
+    {
+        'lewis6991/gitsigns.nvim',
+        config = function()
+            require('gitsigns').setup({
+                signs = {
+                    add = { text = '│' },
+                    change = { text = '│' },
+                    delete = { text = '_' },
+                    topdelete = { text = '‾' },
+                    changedelete = { text = '~' },
+                },
+            })
+        end,
+    },
+
+    -- Which-key (shows available keybindings)
+    {
+        'folke/which-key.nvim',
+        event = 'VeryLazy',
+        config = function()
+            require('which-key').setup()
+        end,
+    },
+
+    -- Auto pairs (brackets, quotes)
+    {
+        'windwp/nvim-autopairs',
+        event = 'InsertEnter',
+        config = true,
+    },
+
+    -- Comment toggling
+    {
+        'numToStr/Comment.nvim',
+        config = true,  -- gcc to comment line, gc in visual mode
+    },
+
+    -- Indent guides
+    {
+        'lukas-reineke/indent-blankline.nvim',
+        main = 'ibl',
+        config = function()
+            require('ibl').setup()
+        end,
+    },
+}, {
+    -- Lazy.nvim options
+    checker = { enabled = false },  -- Don't auto-check for updates
+})
+
+-- =============================================================================
+-- Autocommands
+-- =============================================================================
+local augroup = vim.api.nvim_create_augroup('CloudArchitect', { clear = true })
+
+-- Highlight on yank
+vim.api.nvim_create_autocmd('TextYankPost', {
+    group = augroup,
+    callback = function()
+        vim.highlight.on_yank({ timeout = 200 })
+    end,
+})
+
+-- Remove trailing whitespace on save
+vim.api.nvim_create_autocmd('BufWritePre', {
+    group = augroup,
+    pattern = '*',
+    command = [[%s/\s\+$//e]],
+})
+
+-- Return to last edit position
+vim.api.nvim_create_autocmd('BufReadPost', {
+    group = augroup,
+    callback = function()
+        local mark = vim.api.nvim_buf_get_mark(0, '"')
+        local lcount = vim.api.nvim_buf_line_count(0)
+        if mark[1] > 0 and mark[1] <= lcount then
+            pcall(vim.api.nvim_win_set_cursor, 0, mark)
+        end
+    end,
+})
+NVIMCONFIG
+
+    # Add Neovim aliases to .zshrc
+    if ! grep -q 'alias vim=' "$HOME/.zshrc"; then
+        log_step "Adding Neovim aliases to .zshrc..."
+        cat >> "$HOME/.zshrc" << 'EOF'
+
+# Neovim as default editor
+export EDITOR='nvim'
+export VISUAL='nvim'
+alias vim='nvim'
+alias vi='nvim'
+EOF
+    fi
+
+    log_step "Neovim configured! First launch will install plugins automatically."
+
     # Set Zsh as default shell
     log_step "Setting Zsh as default shell..."
     sudo chsh -s $(which zsh) $USER
@@ -411,7 +674,7 @@ phase_6_apps_tools() {
         ripgrep \
         fd-find \
         bat \
-        exa \
+        eza \
         tldr
 
     # Create useful aliases
@@ -420,7 +683,7 @@ phase_6_apps_tools() {
         cat >> "$HOME/.zshrc" << 'EOF'
 
 # Cloud Architect aliases
-alias ll='exa -la --git'
+alias ll='eza -la --git'
 alias cat='batcat'
 alias fd='fdfind'
 alias k='kubectl'
@@ -466,7 +729,11 @@ main() {
     should_run_phase "6" && phase_6_apps_tools
 
     echo -e "\n${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}  SETUP COMPLETE!${NC}"
+    echo -e "${GREEN}  SETUP COMPLETE!${NC}"sudo apt install -y eza tldr
+
+# Add the alias manually (or it'll be there on next full run)
+echo "alias ll='eza -la --git'" >> ~/.zshrc
+source ~/.zshrc
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     echo -e "${YELLOW}Next steps:${NC}"
