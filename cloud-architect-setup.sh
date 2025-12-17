@@ -729,11 +729,7 @@ main() {
     should_run_phase "6" && phase_6_apps_tools
 
     echo -e "\n${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}  SETUP COMPLETE!${NC}"sudo apt install -y eza tldr
-
-# Add the alias manually (or it'll be there on next full run)
-echo "alias ll='eza -la --git'" >> ~/.zshrc
-source ~/.zshrc
+    echo -e "${GREEN}  SETUP COMPLETE!${NC}"
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     echo -e "${YELLOW}Next steps:${NC}"
