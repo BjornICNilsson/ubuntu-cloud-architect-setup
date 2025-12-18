@@ -8,6 +8,7 @@
 # USAGE:
 #   Option A: Run entire script:  ./cloud-architect-setup.sh
 #   Option B: Run specific phase: ./cloud-architect-setup.sh --phase 3
+#   Option C: Rootless Docker:      ./cloud-architect-setup.sh --rootless-docker
 #
 # PHASES:
 #   1 - Foundation (system update, core deps, Zsh + Oh My Zsh + Starship)
@@ -19,7 +20,7 @@
 #
 #===============================================================================
 
-set -e  # Exit on any error
+set -euo pipefail  # Exit on any error, undefined var, or failed pipe
 
 # Colors for output
 RED='\033[0;31m'
@@ -36,9 +37,15 @@ log_warn() { echo -e "${RED}[!]${NC} $1"; }
 
 # Parse arguments
 PHASE_TO_RUN=""
+DOCKER_ROOTLESS="false"
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --phase) PHASE_TO_RUN="$2"; shift 2 ;;
+        --phase)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --phase requires a value"; exit 1
+            fi
+            PHASE_TO_RUN="$2"; shift 2 ;;
+        --rootless-docker) DOCKER_ROOTLESS="true"; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
@@ -115,15 +122,23 @@ phase_1_foundation() {
         log_info "Starship already installed"
     fi
 
-    # Install FiraCode Nerd Font
+    # Install FiraCode Nerd Font (with checksum verification)
     log_step "Installing FiraCode Nerd Font..."
     FONT_DIR="$HOME/.local/share/fonts"
     if [ ! -f "$FONT_DIR/FiraCodeNerdFont-Regular.ttf" ]; then
+        TMP_DIR="$(mktemp -d)"
         mkdir -p "$FONT_DIR"
-        curl -fsSL -o /tmp/FiraCode.zip \
+        curl -fsSL -o "$TMP_DIR/FiraCode.zip" \
             "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip"
-        unzip -o /tmp/FiraCode.zip -d "$FONT_DIR"
-        rm /tmp/FiraCode.zip
+        curl -fsSL -o "$TMP_DIR/SHA-256.txt" \
+            "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/SHA-256.txt"
+        EXPECTED_SHA="$(grep 'FiraCode.zip' "$TMP_DIR/SHA-256.txt" | awk '{print $1}' || true)"
+        if [[ -z "$EXPECTED_SHA" ]]; then
+            log_warn "Checksum not found for FiraCode.zip"; exit 1
+        fi
+        echo "${EXPECTED_SHA}  $TMP_DIR/FiraCode.zip" | sha256sum -c -
+        unzip -o "$TMP_DIR/FiraCode.zip" -d "$FONT_DIR"
+        rm -rf "$TMP_DIR"
         fc-cache -fv
     else
         log_info "FiraCode Nerd Font already installed"
@@ -723,9 +738,30 @@ phase_4_containers() {
         log_info "Docker already installed"
     fi
 
-    # Add user to docker group (no sudo needed for docker commands)
-    log_step "Adding $USER to docker group..."
-    sudo usermod -aG docker "$USER"
+    if [[ "$DOCKER_ROOTLESS" == "true" ]]; then
+        log_step "Configuring rootless Docker..."
+        sudo apt install -y docker-ce-rootless-extras uidmap dbus-user-session slirp4netns fuse-overlayfs
+        if ! systemctl --user status docker &>/dev/null; then
+            if command -v dockerd-rootless-setuptool.sh &> /dev/null; then
+                dockerd-rootless-setuptool.sh install
+            else
+                log_warn "dockerd-rootless-setuptool.sh not found; rootless setup skipped"
+            fi
+        else
+            log_info "Rootless Docker already configured"
+        fi
+        if ! grep -q 'DOCKER_HOST=unix:///run/user/$UID/docker.sock' "$HOME/.zshrc"; then
+            cat >> "$HOME/.zshrc" << 'EOF'
+
+# Rootless Docker
+export DOCKER_HOST=unix:///run/user/$UID/docker.sock
+EOF
+        fi
+    else
+        # Add user to docker group (no sudo needed for docker commands)
+        log_step "Adding $USER to docker group..."
+        sudo usermod -aG docker "$USER"
+    fi
 
     # kubectl
     log_step "Installing kubectl..."
@@ -748,12 +784,25 @@ phase_4_containers() {
         log_info "Helm already installed"
     fi
 
-    # k9s (Kubernetes TUI)
+    # k9s (Kubernetes TUI, with checksum verification)
     log_step "Installing k9s..."
     if ! command -v k9s &> /dev/null; then
-        K9S_VERSION=$(curl -s https://api.github.com/repos/derailed/k9s/releases/latest | grep tag_name | cut -d '"' -f 4)
-        curl -fsSL "https://github.com/derailed/k9s/releases/download/${K9S_VERSION}/k9s_Linux_amd64.tar.gz" | \
-            sudo tar xzf - -C /usr/local/bin k9s
+        K9S_VERSION="$(curl -fsSL https://api.github.com/repos/derailed/k9s/releases/latest | grep tag_name | cut -d '"' -f 4 || true)"
+        if [[ -z "$K9S_VERSION" ]]; then
+            log_warn "Could not determine k9s version"; exit 1
+        fi
+        TMP_DIR="$(mktemp -d)"
+        curl -fsSL -o "$TMP_DIR/k9s.tar.gz" \
+            "https://github.com/derailed/k9s/releases/download/${K9S_VERSION}/k9s_Linux_amd64.tar.gz"
+        curl -fsSL -o "$TMP_DIR/checksums.txt" \
+            "https://github.com/derailed/k9s/releases/download/${K9S_VERSION}/checksums.txt"
+        EXPECTED_SHA="$(grep 'k9s_Linux_amd64.tar.gz' "$TMP_DIR/checksums.txt" | awk '{print $1}' || true)"
+        if [[ -z "$EXPECTED_SHA" ]]; then
+            log_warn "Checksum not found for k9s"; exit 1
+        fi
+        echo "${EXPECTED_SHA}  $TMP_DIR/k9s.tar.gz" | sha256sum -c -
+        sudo tar xzf "$TMP_DIR/k9s.tar.gz" -C /usr/local/bin k9s
+        rm -rf "$TMP_DIR"
     else
         log_info "k9s already installed"
     fi
@@ -776,7 +825,11 @@ phase_4_containers() {
         fi
     done
 
-    log_step "Phase 4 complete! (Logout/login to use docker without sudo)"
+    if [[ "$DOCKER_ROOTLESS" == "true" ]]; then
+        log_step "Phase 4 complete! (Logout/login, then test: docker info)"
+    else
+        log_step "Phase 4 complete! (Logout/login to use docker without sudo)"
+    fi
 }
 
 #===============================================================================
@@ -874,7 +927,7 @@ phase_6_apps_tools() {
     if ! command -v spotify &> /dev/null; then
         curl -sS https://download.spotify.com/debian/pubkey_C85668DF69375001.gpg | \
             sudo gpg --dearmor --output /usr/share/keyrings/spotify-archive-keyring.gpg --yes
-        echo "deb [signed-by=/usr/share/keyrings/spotify-archive-keyring.gpg] http://repository.spotify.com stable non-free" | \
+        echo "deb [signed-by=/usr/share/keyrings/spotify-archive-keyring.gpg] https://repository.spotify.com stable non-free" | \
             sudo tee /etc/apt/sources.list.d/spotify.list
         sudo apt update
         sudo apt install -y spotify-client
