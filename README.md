@@ -15,7 +15,7 @@ A single, idempotent bash script that installs and configures everything a cloud
 ```mermaid
 flowchart LR
     subgraph P1[Phase 1]
-        A[Zsh + Oh My Zsh]
+        A[Zsh + Starship + Neovim]
     end
     subgraph P2[Phase 2]
         B[Brave + Edge]
@@ -39,13 +39,15 @@ flowchart LR
 
 | Category | Tools |
 |----------|-------|
-| **Shell** | Zsh, Oh My Zsh, autosuggestions, syntax-highlighting |
+| **Shell** | Zsh, Oh My Zsh, Starship prompt, autosuggestions, syntax-highlighting |
+| **Editor** | Neovim with Lazy.nvim, Tokyo Night theme, Telescope, Treesitter |
+| **Fonts** | FiraCode Nerd Font |
 | **Browsers** | Brave (default), Microsoft Edge (O365/Teams) |
 | **Runtimes** | Python 3 + pip + venv, nvm + Node.js LTS |
 | **Containers** | Docker CE, Docker Compose, kubectl, Helm, k9s, kubectx/kubens |
 | **Cloud & AI** | Azure CLI, Claude Code, Codex CLI |
-| **Apps** | VS Code, 1Password, Spotify |
-| **CLI Tools** | htop, btop, jq, yq, ripgrep, bat, exa, fzf, httpie, ncdu, and more |
+| **Apps** | VS Code Insiders, 1Password, Spotify |
+| **CLI Tools** | htop, btop, jq, yq, ripgrep, bat, eza, fzf, httpie, ncdu, and more |
 
 ## 🚀 Quick Start
 
@@ -66,7 +68,7 @@ chmod +x cloud-architect-setup.sh
 
 ### Run Specific Phase
 ```bash
-./cloud-architect-setup.sh --phase 1   # Foundation (Zsh, core deps)
+./cloud-architect-setup.sh --phase 1   # Foundation (Zsh, Starship, Neovim)
 ./cloud-architect-setup.sh --phase 2   # Browsers
 ./cloud-architect-setup.sh --phase 3   # Python + Node
 ./cloud-architect-setup.sh --phase 4   # Docker + Kubernetes
@@ -80,6 +82,9 @@ chmod +x cloud-architect-setup.sh
 - System update and upgrade
 - Core build dependencies
 - Zsh with Oh My Zsh
+- Starship prompt with cloud architect config (Azure, K8s, Terraform context)
+- FiraCode Nerd Font
+- Neovim with Lazy.nvim plugin manager and essential plugins
 - Plugins: git, autosuggestions, syntax-highlighting
 
 ### Phase 2: Browsers
@@ -104,17 +109,18 @@ chmod +x cloud-architect-setup.sh
 - Codex CLI (OpenAI)
 
 ### Phase 6: Apps & Tools
-- Visual Studio Code
+- Visual Studio Code Insiders (latest features)
 - 1Password (desktop app)
 - Spotify
-- CLI toolkit: htop, btop, jq, yq, ripgrep, bat, exa, fzf, httpie, ncdu, net-tools, dnsutils, tcpdump, nmap, and more
+- CLI toolkit: htop, btop, jq, yq, ripgrep, bat, eza, fzf, httpie, ncdu, net-tools, dnsutils, tcpdump, nmap, and more
 
 ## ⌨️ Aliases Included
 
 The script adds these handy aliases to your `.zshrc`:
 
 ```bash
-ll      # exa -la --git
+code    # code-insiders
+ll      # eza -la --git
 cat     # batcat (syntax highlighted cat)
 fd      # fdfind
 k       # kubectl
@@ -134,19 +140,21 @@ After the script completes:
 
 1. **Log out and back in** - Activates Zsh and Docker group membership
 
-2. **Authenticate your tools:**
+2. **Set your terminal font** to "FiraCode Nerd Font" for Starship icons to render properly
+
+3. **Authenticate your tools:**
    ```bash
    az login                    # Azure CLI
    claude                      # Claude Code setup
    codex                       # Codex CLI setup
    ```
 
-3. **Sign into apps:**
+4. **Sign into apps:**
    - 1Password
    - Brave (sync if desired)
    - Spotify
 
-4. **Verify installation:**
+5. **Verify installation:**
    ```bash
    docker --version
    kubectl version --client
