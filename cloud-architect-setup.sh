@@ -10,12 +10,12 @@
 #   Option B: Run specific phase: ./cloud-architect-setup.sh --phase 3
 #
 # PHASES:
-#   1 - Foundation (system update, core deps, Zsh + Oh My Zsh)
+#   1 - Foundation (system update, core deps, Zsh + Oh My Zsh + Starship)
 #   2 - Browsers (Brave as default, Edge for O365/Teams)
 #   3 - Dev Runtimes (Python, nvm + Node LTS)
 #   4 - Containers & K8s (Docker, kubectl, helm, k9s, kubectx)
 #   5 - Cloud & AI (Azure CLI, Claude Code, Codex)
-#   6 - Apps & Tools (VSCode, 1Password, Spotify, CLI debug tools)
+#   6 - Apps & Tools (VSCode Insiders, 1Password, Spotify, CLI debug tools)
 #
 #===============================================================================
 
@@ -51,7 +51,7 @@ should_run_phase() {
 # PHASE 1: FOUNDATION
 #===============================================================================
 phase_1_foundation() {
-    log_phase "1" "Foundation - System Update, Core Dependencies, Zsh"
+    log_phase "1" "Foundation - System Update, Core Dependencies, Zsh + Starship"
 
     # System update
     log_step "Updating system packages..."
@@ -99,9 +99,238 @@ phase_1_foundation() {
         git clone https://github.com/zsh-users/zsh-syntax-highlighting "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
     fi
 
-    # Configure .zshrc with plugins (will be updated in later phases)
+    # Configure .zshrc with plugins (idempotent - only adds if missing)
     log_step "Configuring .zshrc with initial plugins..."
-    sed -i 's/plugins=(git)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' "$HOME/.zshrc"
+    for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
+        if ! grep -q "$plugin" "$HOME/.zshrc"; then
+            sed -i "s/plugins=(\(.*\))/plugins=(\1 $plugin)/" "$HOME/.zshrc"
+        fi
+    done
+
+    # Install Starship prompt
+    log_step "Installing Starship prompt..."
+    if ! command -v starship &> /dev/null; then
+        curl -sS https://starship.rs/install.sh | sh -s -- -y
+    else
+        log_info "Starship already installed"
+    fi
+
+    # Install FiraCode Nerd Font
+    log_step "Installing FiraCode Nerd Font..."
+    FONT_DIR="$HOME/.local/share/fonts"
+    if [ ! -f "$FONT_DIR/FiraCodeNerdFont-Regular.ttf" ]; then
+        mkdir -p "$FONT_DIR"
+        curl -fsSL -o /tmp/FiraCode.zip \
+            "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip"
+        unzip -o /tmp/FiraCode.zip -d "$FONT_DIR"
+        rm /tmp/FiraCode.zip
+        fc-cache -fv
+    else
+        log_info "FiraCode Nerd Font already installed"
+    fi
+
+    # Configure Starship
+    log_step "Configuring Starship prompt..."
+    mkdir -p "$HOME/.config"
+    cat > "$HOME/.config/starship.toml" << 'STARSHIPCONFIG'
+# ~/.config/starship.toml
+# Clean & functional config for cloud architects
+
+# Minimal prompt character
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+
+# Directory - truncated, clean
+[directory]
+truncation_length = 3
+truncate_to_repo = true
+style = "bold cyan"
+
+# Git - minimal but useful
+[git_branch]
+symbol = " "
+style = "bold purple"
+
+[git_status]
+style = "bold yellow"
+format = '([$all_status$ahead_behind]($style) )'
+
+# Azure - show only when relevant
+[azure]
+disabled = false
+symbol = "󰠅 "
+style = "bold blue"
+format = '[$symbol($subscription)]($style) '
+
+# Kubernetes - context aware
+[kubernetes]
+disabled = false
+symbol = "󱃾 "
+style = "bold bright-blue"
+format = '[$symbol$context( \($namespace\))]($style) '
+detect_folders = ["k8s", "kubernetes", "helm", "charts"]
+
+# Terraform - workspace awareness
+[terraform]
+disabled = false
+symbol = "󱁢 "
+style = "bold 105"
+format = '[$symbol$workspace]($style) '
+
+# Python - when in venv
+[python]
+symbol = " "
+style = "bold yellow"
+format = '[${symbol}${pyenv_prefix}(${version} )(\($virtualenv\) )]($style)'
+
+# Node - minimal
+[nodejs]
+symbol = " "
+style = "bold green"
+format = '[$symbol($version )]($style)'
+
+# Docker context
+[docker_context]
+symbol = " "
+style = "bold blue"
+only_with_files = true
+
+# Time - optional, uncomment if you want it
+# [time]
+# disabled = false
+# format = '[$time]($style) '
+# style = "dimmed white"
+
+# Command duration - only show if > 2s
+[cmd_duration]
+min_time = 2_000
+style = "bold yellow"
+format = '[took $duration]($style) '
+
+# Clean line break before prompt
+[line_break]
+disabled = false
+
+# ---- Disabled noisy modules ----
+[package]
+disabled = true
+
+[aws]
+disabled = true  # Enable if you use AWS too
+
+[gcloud]
+disabled = true  # Enable if you use GCP too
+
+[helm]
+disabled = true  # K8s context is enough
+
+[buf]
+disabled = true
+
+[cmake]
+disabled = true
+
+[cobol]
+disabled = true
+
+[crystal]
+disabled = true
+
+[daml]
+disabled = true
+
+[dart]
+disabled = true
+
+[deno]
+disabled = true
+
+[dotnet]
+disabled = true
+
+[elixir]
+disabled = true
+
+[elm]
+disabled = true
+
+[erlang]
+disabled = true
+
+[golang]
+disabled = true  # Enable if you write Go
+
+[haskell]
+disabled = true
+
+[java]
+disabled = true
+
+[julia]
+disabled = true
+
+[kotlin]
+disabled = true
+
+[lua]
+disabled = true
+
+[nim]
+disabled = true
+
+[nix_shell]
+disabled = true
+
+[ocaml]
+disabled = true
+
+[perl]
+disabled = true
+
+[php]
+disabled = true
+
+[pulumi]
+disabled = true
+
+[purescript]
+disabled = true
+
+[rlang]
+disabled = true
+
+[ruby]
+disabled = true
+
+[rust]
+disabled = true
+
+[scala]
+disabled = true
+
+[swift]
+disabled = true
+
+[vagrant]
+disabled = true
+
+[vlang]
+disabled = true
+
+[zig]
+disabled = true
+STARSHIPCONFIG
+
+    # Add Starship initialization to .zshrc
+    if ! grep -q 'starship init' "$HOME/.zshrc"; then
+        log_step "Adding Starship init to .zshrc..."
+        cat >> "$HOME/.zshrc" << 'EOF'
+
+# Starship prompt
+eval "$(starship init zsh)"
+EOF
+    fi
 
     # Install Neovim (latest stable via PPA)
     log_step "Installing Neovim..."
@@ -368,7 +597,7 @@ EOF
 
     # Set Zsh as default shell
     log_step "Setting Zsh as default shell..."
-    sudo chsh -s $(which zsh) $USER
+    sudo chsh -s "$(which zsh)" "$USER"
 
     log_step "Phase 1 complete! (Logout/login to activate Zsh)"
 }
@@ -396,7 +625,7 @@ phase_2_browsers() {
     log_step "Installing Microsoft Edge..."
     if ! command -v microsoft-edge-stable &> /dev/null; then
         curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | \
-            sudo gpg --dearmor -o /usr/share/keyrings/microsoft-edge.gpg
+            sudo gpg --dearmor -o /usr/share/keyrings/microsoft-edge.gpg --yes
         echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-edge.gpg] https://packages.microsoft.com/repos/edge stable main" | \
             sudo tee /etc/apt/sources.list.d/microsoft-edge.list
         sudo apt update
@@ -496,13 +725,13 @@ phase_4_containers() {
 
     # Add user to docker group (no sudo needed for docker commands)
     log_step "Adding $USER to docker group..."
-    sudo usermod -aG docker $USER
+    sudo usermod -aG docker "$USER"
 
     # kubectl
     log_step "Installing kubectl..."
     if ! command -v kubectl &> /dev/null; then
         curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | \
-            sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+            sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg --yes
         echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' | \
             sudo tee /etc/apt/sources.list.d/kubernetes.list
         sudo apt update
@@ -539,9 +768,13 @@ phase_4_containers() {
         log_info "kubectx already installed"
     fi
 
-    # Update .zshrc with kubectl and docker plugins
+    # Update .zshrc with kubectl and docker plugins (idempotent)
     log_step "Adding kubectl and docker plugins to Zsh..."
-    sed -i 's/plugins=(git/plugins=(git kubectl docker docker-compose kubectx/' "$HOME/.zshrc"
+    for plugin in kubectl docker docker-compose kubectx; do
+        if ! grep -q "$plugin" "$HOME/.zshrc"; then
+            sed -i "s/plugins=(\(.*\))/plugins=(\1 $plugin)/" "$HOME/.zshrc"
+        fi
+    done
 
     log_step "Phase 4 complete! (Logout/login to use docker without sudo)"
 }
@@ -598,27 +831,30 @@ EOF
 # PHASE 6: APPS & CLI TOOLS
 #===============================================================================
 phase_6_apps_tools() {
-    log_phase "6" "Apps & Tools - VSCode, 1Password, Spotify, CLI Debug Tools"
+    log_phase "6" "Apps & Tools - VSCode Insiders, 1Password, Spotify, CLI Debug Tools"
 
-    # Visual Studio Code
-    log_step "Installing Visual Studio Code..."
-    if ! command -v code &> /dev/null; then
-        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
-        sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
-        echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | \
+    # Visual Studio Code Insiders (latest features)
+    log_step "Installing Visual Studio Code Insiders..."
+    if ! command -v code-insiders &> /dev/null; then
+        # Remove any existing vscode sources to avoid signed-by conflicts
+        sudo rm -f /etc/apt/sources.list.d/vscode.list
+        sudo rm -f /etc/apt/sources.list.d/vscode.sources
+        # Use consistent keyring location
+        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | \
+            sudo gpg --dearmor -o /usr/share/keyrings/microsoft-vscode.gpg --yes
+        echo "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-vscode.gpg] https://packages.microsoft.com/repos/code stable main" | \
             sudo tee /etc/apt/sources.list.d/vscode.list
-        rm -f packages.microsoft.gpg
         sudo apt update
-        sudo apt install -y code
+        sudo apt install -y code-insiders
     else
-        log_info "VSCode already installed"
+        log_info "VSCode Insiders already installed"
     fi
 
     # 1Password Desktop
     log_step "Installing 1Password..."
     if ! command -v 1password &> /dev/null; then
         curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
-            sudo gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg
+            sudo gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg --yes
         echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/amd64 stable main' | \
             sudo tee /etc/apt/sources.list.d/1password.list
         sudo mkdir -p /etc/debsig/policies/AC2D62742012EA22/
@@ -626,7 +862,7 @@ phase_6_apps_tools() {
             sudo tee /etc/debsig/policies/AC2D62742012EA22/1password.pol
         sudo mkdir -p /usr/share/debsig/keyrings/AC2D62742012EA22
         curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
-            sudo gpg --dearmor --output /usr/share/debsig/keyrings/AC2D62742012EA22/debsig.gpg
+            sudo gpg --dearmor --output /usr/share/debsig/keyrings/AC2D62742012EA22/debsig.gpg --yes
         sudo apt update
         sudo apt install -y 1password
     else
@@ -637,7 +873,7 @@ phase_6_apps_tools() {
     log_step "Installing Spotify..."
     if ! command -v spotify &> /dev/null; then
         curl -sS https://download.spotify.com/debian/pubkey_C85668DF69375001.gpg | \
-            sudo gpg --dearmor --output /usr/share/keyrings/spotify-archive-keyring.gpg
+            sudo gpg --dearmor --output /usr/share/keyrings/spotify-archive-keyring.gpg --yes
         echo "deb [signed-by=/usr/share/keyrings/spotify-archive-keyring.gpg] http://repository.spotify.com stable non-free" | \
             sudo tee /etc/apt/sources.list.d/spotify.list
         sudo apt update
@@ -683,6 +919,7 @@ phase_6_apps_tools() {
         cat >> "$HOME/.zshrc" << 'EOF'
 
 # Cloud Architect aliases
+alias code='code-insiders'
 alias ll='eza -la --git'
 alias cat='batcat'
 alias fd='fdfind'
@@ -738,7 +975,7 @@ main() {
     echo "  3. Run 'claude' to configure Claude Code API key"
     echo "  4. Run 'codex' to configure Codex API key"
     echo "  5. Open 1Password and sign in"
-    echo "  6. Install VSCode extensions as needed"
+    echo "  6. Install VSCode Insiders extensions as needed"
     echo ""
     echo -e "${BLUE}Verification commands:${NC}"
     echo "  docker --version && kubectl version --client && az --version"
