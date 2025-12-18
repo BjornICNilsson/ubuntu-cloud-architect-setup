@@ -4,7 +4,7 @@ Transform a fresh Ubuntu 24.04 LTS installation into a fully-equipped, AI-powere
 
 ```
 ╔═══════════════════════════════════════════════════════════════════╗
-║     Stability • Enterprise Integration • AI-Powered Dev          ║
+║     Stability • Enterprise Integration • AI-Powered Dev           ║
 ╚═══════════════════════════════════════════════════════════════════╝
 ```
 
